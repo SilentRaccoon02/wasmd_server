@@ -5,6 +5,7 @@
         "moduleResolution": "NodeNext",
         "rootDir": "./src",
         "outDir": "./build",
-        "removeComments": true
+        "removeComments": true,
+        "strictNullChecks": true
     }
 }
