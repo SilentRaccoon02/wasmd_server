@@ -29,6 +29,9 @@
                 "variableDeclaration": true,
                 "variableDeclarationIgnoreFunction": true
             }
+        ],
+        "@typescript-eslint/explicit-member-accessibility": [
+            "error"
         ]
     }
 }
