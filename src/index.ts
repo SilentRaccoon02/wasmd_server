@@ -1,3 +1,4 @@
+import ClientsManager from './ClientsManager.js';
 import express from 'express';
 import path from 'path';
 import type http from 'http';
@@ -11,8 +12,10 @@ const STATIC_DIR: string = path.resolve(BUILD_DIR, '..', 'wasmd_web', 'build');
 const app: express.Application = express();
 const httpServer: http.Server = app.listen(PORT, () => { console.log(PORT); });
 const webSocketServer: WebSocketServer = new WebSocketServer({ noServer: true });
+const clientsManager: ClientsManager = new ClientsManager(webSocketServer);
 
 app.use(express.static(STATIC_DIR));
+clientsManager.bind();
 
 httpServer.on('upgrade', (req: http.IncomingMessage, socket: internal.Duplex, head: Buffer) => {
     webSocketServer.handleUpgrade(req, socket, head, (webSocket: WebSocket) => {
