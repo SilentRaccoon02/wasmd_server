@@ -1,4 +1,4 @@
-import ClientsManager from './ClientsManager.js';
+import Nodes from './Nodes.js';
 import express from 'express';
 import path from 'path';
 import type http from 'http';
@@ -10,12 +10,12 @@ const BUILD_DIR: string = path.resolve();
 const STATIC_DIR: string = path.resolve(BUILD_DIR, '..', 'wasmd_web', 'build');
 
 const app: express.Application = express();
-const httpServer: http.Server = app.listen(PORT, () => { console.log(`running on ${PORT}`); });
+const httpServer: http.Server = app.listen(PORT, () => { console.log(`running on port ${PORT}`); });
 const webSocketServer: WebSocketServer = new WebSocketServer({ noServer: true });
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const clientsManager: ClientsManager = new ClientsManager(webSocketServer);
+const nodes: Nodes = new Nodes();
 
 app.use(express.static(STATIC_DIR));
+webSocketServer.on('connection', nodes.connection);
 
 httpServer.on('upgrade', (req: http.IncomingMessage, socket: internal.Duplex, head: Buffer) => {
     webSocketServer.handleUpgrade(req, socket, head, (webSocket: WebSocket) => {
