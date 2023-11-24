@@ -27,9 +27,8 @@ export default class Nodes {
             });
         });
 
-        webSocket.on('error', (error: Error) => {
-            console.log(error);
-        });
+        webSocket.on('error', (error: Error) => { console.log(error); });
+        webSocket.binaryType = 'arraybuffer';
 
         this._nodes[uuid] = webSocket;
         this.send({ type: 'uuid', from: undefined, to: uuid, data: undefined });
