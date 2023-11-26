@@ -28,6 +28,7 @@ export default class Connections {
         })
 
         webSocket.on('close', () => {
+            console.log(`close ${uuid}`)
             this._nodes.delete(uuid)
             for (const key of this._nodes.keys()) {
                 this.send({ type: DataType.NODE_CLOSE, from: undefined, to: key, data: uuid })
@@ -40,10 +41,10 @@ export default class Connections {
         this._nodes.set(uuid, webSocket)
         this.send({ type: DataType.NODE_UUID, from: undefined, to: uuid, data: undefined })
         this.send({ type: DataType.NODE_LIST, from: undefined, to: uuid, data: nodes })
+        console.log(`open ${uuid}`)
     }
 
     private send (data: Data): void {
-        console.log(`send: type: ${data.type} from: ${data.from} to: ${data.to}`)
         const jsonString = JSON.stringify(data)
         const bytes = new TextEncoder().encode(jsonString)
         this._nodes.get(data.to)?.send(bytes)
