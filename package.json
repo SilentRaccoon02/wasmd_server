@@ -5,7 +5,8 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "tsc && node ./build/index.js"
+    "dev": "tsc && node ./build/index.js",
+    "prod": "tsc"
   },
   "keywords": [],
   "author": "",
