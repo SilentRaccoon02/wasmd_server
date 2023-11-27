@@ -4,6 +4,7 @@ prod:
 	npm run prod --prefix ../wasmd_web
 	npm run prod
 	docker build -t silentraccoon02/wasmd .
+	docker push silentraccoon02/wasmd:latest
 
 run:
 	docker run -d -p 2512:2512 --rm --name wasmd silentraccoon02/wasmd
