@@ -7,4 +7,4 @@ prod:
 	docker push silentraccoon02/wasmd:latest
 
 run:
-	docker run -d -p 2512:2512 --rm --name wasmd silentraccoon02/wasmd
+	docker run -d -p 3000:3000 --rm --name wasmd silentraccoon02/wasmd

@@ -3,7 +3,7 @@ import express from 'express'
 import path from 'path'
 import { WebSocketServer } from 'ws'
 
-const PORT = process.env.PORT ?? 2512
+const PORT = process.env.PORT ?? 3000
 const DIR = path.resolve()
 const STATIC_DIR = path.resolve(DIR, 'build', 'static')
 

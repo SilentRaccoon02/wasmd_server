@@ -8,7 +8,7 @@ RUN npm install --omit=dev
 
 COPY ./build ./build
 
-ENV PORT 2512
+ENV PORT 3000
 
 EXPOSE $PORT
 
