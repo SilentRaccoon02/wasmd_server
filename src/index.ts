@@ -5,12 +5,13 @@ import { WebSocketServer } from 'ws'
 
 const DIR = path.resolve()
 const STATIC_DIR = path.resolve(DIR, 'build', 'static')
+const ADDRESS = process.env.ADDRESS ?? '127.0.0.1'
 const PORT = process.argv.length === 3 ? process.argv[2] : (process.env.PORT ?? 3000)
 
 const app = express()
 const httpServer = app.listen(PORT, () => { console.log(`running on port ${PORT}`) })
 const webSocketServer = new WebSocketServer({ noServer: true })
-const connections = new Connections(Number(PORT))
+const connections = new Connections(ADDRESS, Number(PORT))
 
 app.use(express.static(STATIC_DIR))
 webSocketServer.on('connection', connections.connection)
