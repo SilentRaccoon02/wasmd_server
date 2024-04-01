@@ -20,7 +20,10 @@ enum DataType {
 
     FILE_PROCESS = 'file-process',
     FILE_RESULT = 'file-result',
-    MODULE_STATE = 'module-state'
+    MODULE_STATE = 'module-state',
+
+    WS_COMPLETE = 'ws-complete',
+    WS_SPEED = 'ws-speed'
 }
 
 interface Config {
@@ -44,16 +47,23 @@ interface ModuleState {
 interface Node {
     webSocket: WebSocket
     moduleState: ModuleState
+    speed: number
 }
 
 interface Server {
     webSocket: WebSocket
     moduleState: ModuleState
+    speed: number
 }
 
 interface Task {
     sourceFile: string
     node: string | undefined
+}
+
+interface Timestamp {
+    time: number
+    length: number
 }
 
 export default class Connections {
@@ -73,6 +83,7 @@ export default class Connections {
     private readonly _servers = new Map<string, Server>()
     private readonly _files = new Map<string, string>()
     private readonly _tasks = new Map<string, Task>()
+    private readonly _timestamps = new Map<string, Timestamp>()
     private readonly _moduleState: ModuleState = { queued: 0, complete: 0, benchmark: 0 }
 
     public constructor (address: string, port: number) {
@@ -130,7 +141,9 @@ export default class Connections {
             case DataType.FILE_PROCESS: { this.onFileProcess(data); return }
             case DataType.FILE_RESULT: { this.onFileResult(data); return }
             case DataType.MODULE_STATE: { this.onModuleState(data); return }
-            default: { console.log('unknown type') }
+            case DataType.WS_COMPLETE: { this.onCompleteWS(data); return }
+            case DataType.WS_SPEED: { this.onSpeedWS(data); return }
+            default: { console.log(`unknown type ${data.type}`) }
         }
     }
 
@@ -143,18 +156,11 @@ export default class Connections {
                     this.send(DataType.NODE_CLOSE, uuid, node[0])
                 }
 
-                if (this._nodes.size === 0) {
-                    this._tasks.clear()
-                    this._moduleState.queued = 0
-                    this._moduleState.complete = 0
-                    this._moduleState.benchmark = 0
-                }
-
                 for (const task of this._tasks.values()) {
                     if (task.node === node[0]) { task.node = undefined }
                 }
 
-                this.updateBenchmark()
+                this.updateState()
                 this.processFile()
 
                 console.log(`close node ${node[0].substring(0, 8)}`)
@@ -185,7 +191,8 @@ export default class Connections {
 
         this._servers.set(data.from, {
             webSocket,
-            moduleState: { queued: 0, complete: 0, benchmark: 0 }
+            moduleState: { queued: 0, complete: 0, benchmark: 0 },
+            speed: 0
         })
 
         this.send(DataType.SERVER_UUID, data.from, undefined)
@@ -200,7 +207,8 @@ export default class Connections {
 
         this._nodes.set(data.from, {
             webSocket,
-            moduleState: { queued: 0, complete: 0, benchmark: 0 }
+            moduleState: { queued: 0, complete: 0, benchmark: 0 },
+            speed: 0
         })
 
         this.send(DataType.NODE_LIST, data.from, nodes)
@@ -223,7 +231,8 @@ export default class Connections {
 
         this._servers.set(data.from, {
             webSocket,
-            moduleState: { queued: 0, complete: 0, benchmark: 0 }
+            moduleState: { queued: 0, complete: 0, benchmark: 0 },
+            speed: 0
         })
 
         console.log(`open server ${data.from.substring(0, 8)}`)
@@ -232,6 +241,12 @@ export default class Connections {
     private onFileProcess (data: Data): void { // TODO union
         if (data.from === undefined) { return }
 
+        this._timestamps.set(data.data.fileId, {
+            time: performance.now(),
+            length: JSON.stringify(data).length
+        })
+
+        this.send(DataType.WS_COMPLETE, data.from, data.data.fileId)
         const node = this._nodes.get(data.from)
         const server = this._servers.get(data.from)
 
@@ -241,12 +256,6 @@ export default class Connections {
         }
 
         if (server !== undefined) {
-            this._moduleState.queued++
-
-            for (const uuid of this._servers.keys()) {
-                this.send(DataType.MODULE_STATE, uuid, this._moduleState)
-            }
-
             this._tasks.set(data.data.fileId, {
                 sourceFile: data.data.sourceFile,
                 node: undefined
@@ -260,16 +269,16 @@ export default class Connections {
     private onFileResult (data: Data): void { // TODO union
         if (data.from === undefined) { return }
 
+        this._timestamps.set(data.data.fileId, {
+            time: performance.now(),
+            length: JSON.stringify(data).length
+        })
+
+        this.send(DataType.WS_COMPLETE, data.from, data.data.fileId)
         const node = this._nodes.get(data.from)
         const server = this._servers.get(data.from)
 
         if (node !== undefined) {
-            this._moduleState.complete++
-
-            for (const uuid of this._servers.keys()) {
-                this.send(DataType.MODULE_STATE, uuid, this._moduleState)
-            }
-
             const to = this._files.get(data.data.fileId)
 
             if (to !== undefined) {
@@ -299,7 +308,7 @@ export default class Connections {
 
         if (node !== undefined) {
             node.moduleState = data.data
-            this.updateBenchmark()
+            this.updateState()
         }
 
         if (server !== undefined) {
@@ -312,15 +321,77 @@ export default class Connections {
         }
     }
 
-    private updateBenchmark (): void {
-        let total = 0
+    private onCompleteWS (data: Data): void {
+        if (data.from === undefined) { return }
 
-        for (const node of this._nodes.values()) {
-            total += node.moduleState.benchmark
+        const timestamp = this._timestamps.get(data.data)
+        if (timestamp === undefined) { return }
+
+        const seconds = (performance.now() - timestamp.time) / 1000
+        const megabytes = timestamp.length / (1024 * 1024)
+        const speed = megabytes / seconds
+
+        const node = this._nodes.get(data.from)
+        const server = this._servers.get(data.from)
+
+        if (node !== undefined) {
+            node.speed = speed
+
+            for (const server of this._servers) {
+                this.send(DataType.WS_SPEED, data.from, {
+                    uuid: server[0],
+                    speed: Math.min(server[1].speed, node.speed)
+                })
+            }
         }
 
-        if (this._moduleState.benchmark !== total) {
-            this._moduleState.benchmark = total
+        if (server !== undefined) {
+            server.speed = speed
+            this.send(DataType.WS_SPEED, data.from, speed)
+        }
+
+        this._timestamps.delete(data.data)
+    }
+
+    private onSpeedWS (data: Data): void {
+        if (data.from === undefined) { return }
+
+        const node = this._nodes.get(data.from)
+        const server = this._servers.get(data.from)
+
+        if (node !== undefined) {
+            node.speed = data.data
+
+            for (const server of this._servers) {
+                this.send(DataType.WS_SPEED, data.from, {
+                    uuid: server[0],
+                    speed: Math.min(server[1].speed, node.speed)
+                })
+            }
+        }
+
+        if (server !== undefined) {
+            server.speed = data.data
+        }
+    }
+
+    private updateState (): void {
+        let totalQueued = 0
+        let totalComplete = 0
+        let totalBenchmark = 0
+
+        for (const node of this._nodes.values()) {
+            totalQueued += node.moduleState.queued
+            totalComplete += node.moduleState.complete
+            totalBenchmark += node.moduleState.benchmark
+        }
+
+        if (this._moduleState.queued !== totalQueued ||
+            this._moduleState.complete !== totalComplete ||
+            this._moduleState.benchmark !== totalBenchmark) {
+            this._moduleState.queued = totalQueued
+            this._moduleState.complete = totalComplete
+            this._moduleState.benchmark = totalBenchmark
 
             for (const uuid of this._servers.keys()) {
                 this.send(DataType.MODULE_STATE, uuid, this._moduleState)
