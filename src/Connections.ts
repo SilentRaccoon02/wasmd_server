@@ -75,6 +75,8 @@ export default class Connections {
 
     private static readonly _main = this._config[0]
     private static readonly _thresh = 2
+    private static readonly _speedFactor = 0.2
+    private static readonly _benchmarkFactor = 0.8
 
     private _uuid: string | undefined
     private readonly _address: string
@@ -192,7 +194,7 @@ export default class Connections {
         this._servers.set(data.from, {
             webSocket,
             moduleState: { queued: 0, complete: 0, benchmark: 0 },
-            speed: 0
+            speed: 10
         })
 
         this.send(DataType.SERVER_UUID, data.from, undefined)
@@ -208,7 +210,7 @@ export default class Connections {
         this._nodes.set(data.from, {
             webSocket,
             moduleState: { queued: 0, complete: 0, benchmark: 0 },
-            speed: 0
+            speed: 10
         })
 
         this.send(DataType.NODE_LIST, data.from, nodes)
@@ -232,7 +234,7 @@ export default class Connections {
         this._servers.set(data.from, {
             webSocket,
             moduleState: { queued: 0, complete: 0, benchmark: 0 },
-            speed: 0
+            speed: 10
         })
 
         console.log(`open server ${data.from.substring(0, 8)}`)
@@ -426,20 +428,24 @@ export default class Connections {
 
     private selectNode (): string | undefined {
         let totalCount = 0
+        let totalSpeed = 0
         let totalBenchmark = 0
 
         for (const node of this._nodes.entries()) {
             if (node[1].moduleState.benchmark > 0) {
                 totalCount++
+                totalSpeed += node[1].speed
                 totalBenchmark += node[1].moduleState.benchmark
             }
         }
 
         let minNode
         let minDelta = Number.MAX_SAFE_INTEGER
+        const avgSpeed = totalSpeed === 0 ? 0 : totalSpeed / totalCount
         const avgBenchmark = totalBenchmark === 0 ? 0 : totalBenchmark / totalCount
 
         for (const node of this._nodes.entries()) {
+            const speed = node[1].speed
             const benchmark = node[1].moduleState.benchmark
             if (benchmark === 0) { continue }
 
@@ -447,7 +453,11 @@ export default class Connections {
             const complete = node[1].moduleState.complete
             const delta = queued - complete
 
-            const deviation = (benchmark - avgBenchmark) / avgBenchmark
+            const speedDeviation = (speed - avgSpeed) / avgSpeed
+            const benchmarkDeviation = (benchmark - avgBenchmark) / avgBenchmark
+            const deviation = Connections._speedFactor * speedDeviation +
+                              Connections._benchmarkFactor * benchmarkDeviation
+
             const thresh = Math.round(Connections._thresh * deviation + Connections._thresh)
 
             if (delta < minDelta && delta < thresh) {
